@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>後台｜5v5 戰鬥機對戰</title>
+<title>敺嚚?v5 ?圈洛璈???/title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 html,body { width:100%; height:100%; background:#05050f; color:#fff; font-family:Arial,sans-serif; overflow:hidden; }
@@ -35,7 +35,7 @@ html,body { width:100%; height:100%; background:#05050f; color:#fff; font-family
   display:flex; height:calc(100% - 52px);
 }
 
-/* ── Canvas ── */
+/* ?? Canvas ?? */
 #arena-wrap {
   flex:1; position:relative;
 }
@@ -44,7 +44,7 @@ canvas#arena {
   background: radial-gradient(ellipse at 30% 50%, #0d1b3e 0%, #05050f 100%);
 }
 
-/* ── Side panel ── */
+/* ?? Side panel ?? */
 #side {
   width:220px; background:rgba(0,0,0,0.5);
   border-left:1px solid rgba(100,150,255,0.15);
@@ -83,11 +83,11 @@ canvas#arena {
 <body>
 
 <div id="top-bar">
-  <h1>✈ DOGFIGHT 5v5 後台</h1>
+  <h1>??DOGFIGHT 5v5 敺</h1>
   <div style="display:flex;align-items:center;gap:10px;">
-    <span class="status-badge status-waiting" id="status-badge">等待中</span>
-    <button class="btn-start" id="btn-start">▶ 開始遊戲</button>
-    <button class="btn-reset" id="btn-reset">重置</button>
+    <span class="status-badge status-waiting" id="status-badge">蝑?銝?/span>
+    <button class="btn-start" id="btn-start">?????</button>
+    <button class="btn-reset" id="btn-reset">?蔭</button>
   </div>
 </div>
 
@@ -96,23 +96,23 @@ canvas#arena {
     <canvas id="arena"></canvas>
     <div id="winner-banner">
       <div class="win-title" id="win-title"></div>
-      <div class="win-sub">遊戲結束</div>
+      <div class="win-sub">?蝯?</div>
     </div>
   </div>
   <div id="side">
     <div>
-      <div class="panel-title">存活數量</div>
+      <div class="panel-title">摮暑?賊?</div>
       <div class="score-row score-A">
-        <span class="score-label">🔴 A 隊</span>
-        <span class="score-num" id="alive-A">—</span>
+        <span class="score-label">? A ??/span>
+        <span class="score-num" id="alive-A">??/span>
       </div>
       <div class="score-row score-B" style="margin-top:6px;">
-        <span class="score-label">🟢 B 隊</span>
-        <span class="score-num" id="alive-B">—</span>
+        <span class="score-label">? B ??/span>
+        <span class="score-num" id="alive-B">??/span>
       </div>
     </div>
     <div>
-      <div class="panel-title">玩家名單</div>
+      <div class="panel-title">?拙振?</div>
       <div class="player-list" id="player-list"></div>
     </div>
   </div>
@@ -124,10 +124,13 @@ import { getDatabase, ref, set, onValue, update, remove }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDummy_REPLACE_ME",
+  apiKey: "AIzaSyDl_NqANwk_lsfEL5kOyC1RJi29DLvGPU8",
   authDomain: "kuya-candy-game.firebaseapp.com",
   databaseURL: "https://kuya-candy-game-default-rtdb.firebaseio.com",
-  projectId: "kuya-candy-game"
+  projectId: "kuya-candy-game",
+  storageBucket: "kuya-candy-game.firebasestorage.app",
+  messagingSenderId: "105923267148",
+  appId: "1:105923267148:web:1f0e0db9de8cc2876c42e9"
 };
 const app = initializeApp(firebaseConfig);
 const db  = getDatabase(app);
@@ -151,7 +154,7 @@ function resizeCanvas(){
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// ── Watch ──
+// ?? Watch ??
 onValue(ref(db, `${ROOM}/players`), snap => {
   players = snap.val() || {};
   updateSide();
@@ -166,7 +169,7 @@ onValue(ref(db, `${ROOM}/status`), snap => {
 onValue(ref(db, `${ROOM}/winner`), snap => {
   const w = snap.val();
   if(w){
-    winTitle.textContent = `${w === 'A' ? '🔴' : '🟢'} ${w} 隊勝利！`;
+    winTitle.textContent = `${w === 'A' ? '?' : '?'} ${w} ???抬?`;
     winTitle.style.color = w === 'A' ? '#e74c3c' : '#2ecc71';
     winnerBanner.style.display = 'flex';
   }
@@ -174,9 +177,9 @@ onValue(ref(db, `${ROOM}/winner`), snap => {
 
 function updateStatusBadge(){
   statusBadge.className = 'status-badge';
-  if(gameStatus==='waiting'){ statusBadge.textContent='等待中'; statusBadge.classList.add('status-waiting'); }
-  else if(gameStatus==='playing'){ statusBadge.textContent='進行中'; statusBadge.classList.add('status-playing'); }
-  else { statusBadge.textContent='結束'; statusBadge.classList.add('status-ended'); }
+  if(gameStatus==='waiting'){ statusBadge.textContent='蝑?銝?; statusBadge.classList.add('status-waiting'); }
+  else if(gameStatus==='playing'){ statusBadge.textContent='?脰?銝?; statusBadge.classList.add('status-playing'); }
+  else { statusBadge.textContent='蝯?'; statusBadge.classList.add('status-ended'); }
 }
 
 function updateSide(){
@@ -192,24 +195,24 @@ function updateSide(){
     <div class="player-row${p.alive?'':' dead'}">
       <div class="dot dot-${p.team}"></div>
       <div class="player-name">${p.name}</div>
-      <div class="player-team">${p.team}隊</div>
+      <div class="player-team">${p.team}??/div>
     </div>
   `).join('');
 }
 
-// ── Buttons ──
+// ?? Buttons ??
 document.getElementById('btn-start').addEventListener('click', () => {
   update(ref(db, ROOM), { status: 'playing', winner: null });
 });
 document.getElementById('btn-reset').addEventListener('click', async () => {
-  if(!confirm('確定重置這場遊戲？所有玩家資料將清除。')) return;
+  if(!confirm('蝣箏??蔭??嚗??摰嗉???皜??)) return;
   await remove(ref(db, ROOM));
   winnerBanner.style.display = 'none';
   players = {}; bullets = {};
   updateSide();
 });
 
-// ── Render ──
+// ?? Render ??
 const stars = Array.from({length:80},()=>({
   x:Math.random()*3000, y:Math.random()*2000, r:Math.random()*1.5+0.3, a:Math.random()*0.5+0.2
 }));
@@ -269,3 +272,4 @@ loop();
 </script>
 </body>
 </html>
+

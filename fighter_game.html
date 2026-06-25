@@ -1,14 +1,14 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>5v5 戰鬥機對戰</title>
+<title>5v5 ?圈洛璈???/title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { width:100%; height:100%; overflow:hidden; background:#0a0a1a; font-family:'Arial',sans-serif; touch-action:none; }
 
-/* ── LOBBY ── */
+/* ?? LOBBY ?? */
 #lobby {
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   width:100%; height:100%; color:#fff;
@@ -33,7 +33,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:#0a0a1a; font-
 .badge-A { background:#c0392b22; border:1px solid #e74c3c; color:#e74c3c; }
 .badge-B { background:#1a6b2222; border:1px solid #2ecc71; color:#2ecc71; }
 
-/* ── GAME CANVAS AREA ── */
+/* ?? GAME CANVAS AREA ?? */
 #game-wrap {
   display:none; width:100%; height:100%; position:relative; flex-direction:column;
 }
@@ -42,7 +42,7 @@ canvas#arena {
   background: radial-gradient(ellipse at 30% 50%, #0d1b3e 0%, #05050f 100%);
 }
 
-/* ── CONTROLS (使用端專用) ── */
+/* ?? CONTROLS (雿輻蝡臬??? ?? */
 #controls {
   display:none;
   position:absolute; bottom:0; left:0; right:0;
@@ -78,7 +78,7 @@ canvas#arena {
 }
 #fire-btn.active { background:radial-gradient(circle, #ff8a80, #e74c3c); box-shadow:0 0 30px rgba(255,100,80,0.9); }
 
-/* ── HUD ── */
+/* ?? HUD ?? */
 #hud {
   position:absolute; top:0; left:0; right:0;
   height:36px; display:flex; align-items:center; justify-content:space-between;
@@ -97,7 +97,7 @@ canvas#arena {
   width:1px; background:rgba(100,150,255,0.25);
   pointer-events:none;
 }
-/* ── RESULT OVERLAY ── */
+/* ?? RESULT OVERLAY ?? */
 #result-overlay {
   display:none; position:absolute; inset:0;
   background:rgba(0,0,0,0.7);
@@ -112,20 +112,20 @@ canvas#arena {
 
 <!-- LOBBY -->
 <div id="lobby">
-  <h1>✈ DOGFIGHT 5v5</h1>
-  <div class="sub">輸入你的代號加入戰場</div>
-  <input id="name-input" type="text" maxlength="8" placeholder="代號（最多8字）">
-  <button id="join-btn">加入戰局</button>
-  <div class="wait-msg" id="wait-msg">等待主辦方開始遊戲…</div>
+  <h1>??DOGFIGHT 5v5</h1>
+  <div class="sub">頛詨雿?隞????啣</div>
+  <input id="name-input" type="text" maxlength="8" placeholder="隞??嚗?憭?摮?">
+  <button id="join-btn">??啣?</button>
+  <div class="wait-msg" id="wait-msg">蝑?銝餉齒?寥?憪??聆?/div>
   <div class="team-badge" id="team-badge"></div>
 </div>
 
 <!-- GAME -->
 <div id="game-wrap">
   <div id="hud">
-    <div class="team-score score-A">🔴 A隊 <span id="alive-A">5</span></div>
+    <div class="team-score score-A">? A??<span id="alive-A">5</span></div>
     <div class="vs">VS</div>
-    <div class="team-score score-B"><span id="alive-B">5</span> B隊 🟢</div>
+    <div class="team-score score-B"><span id="alive-B">5</span> B???</div>
   </div>
   <div id="center-line"></div>
   <canvas id="arena"></canvas>
@@ -138,7 +138,7 @@ canvas#arena {
   </div>
   <div id="result-overlay">
     <div class="result-title" id="result-title"></div>
-    <div class="result-sub">遊戲結束</div>
+    <div class="result-sub">?蝯?</div>
   </div>
 </div>
 
@@ -148,18 +148,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, set, get, onValue, update, remove, push, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// ── Firebase 設定（沿用 candy-game 的 DB，改 path 隔離） ──
+// ?? Firebase 閮剖?嚗窒??candy-game ??DB嚗 path ?嚗???
 const firebaseConfig = {
-  apiKey: "AIzaSyDummy_REPLACE_ME",
+  apiKey: "AIzaSyDl_NqANwk_lsfEL5kOyC1RJi29DLvGPU8",
   authDomain: "kuya-candy-game.firebaseapp.com",
   databaseURL: "https://kuya-candy-game-default-rtdb.firebaseio.com",
-  projectId: "kuya-candy-game"
+  projectId: "kuya-candy-game",
+  storageBucket: "kuya-candy-game.firebasestorage.app",
+  messagingSenderId: "105923267148",
+  appId: "1:105923267148:web:1f0e0db9de8cc2876c42e9"
 };
 const app = initializeApp(firebaseConfig);
 const db  = getDatabase(app);
 const ROOM = "fighter_room_1";
 
-// ── DOM ──
+// ?? DOM ??
 const lobbyEl   = document.getElementById('lobby');
 const gameWrap  = document.getElementById('game-wrap');
 const nameInput = document.getElementById('name-input');
@@ -177,7 +180,7 @@ const aliveBEl  = document.getElementById('alive-B');
 const resultOverlay = document.getElementById('result-overlay');
 const resultTitle   = document.getElementById('result-title');
 
-// ── State ──
+// ?? State ??
 let myId    = null;
 let myTeam  = null;
 let myName  = '';
@@ -193,14 +196,14 @@ let joyDx = 0, joyDy = 0;
 const JOY_R = 55; // base radius
 const KNOB_R = 22;
 
-// ── Canvas size ──
+// ?? Canvas size ??
 function resizeCanvas(){
   canvas.width  = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
 }
 window.addEventListener('resize', resizeCanvas);
 
-// ── Join ──
+// ?? Join ??
 joinBtn.addEventListener('click', async () => {
   const name = nameInput.value.trim();
   if(!name){ nameInput.focus(); return; }
@@ -241,7 +244,7 @@ joinBtn.addEventListener('click', async () => {
   nameInput.style.display = 'none';
   waitMsg.style.display = 'block';
   teamBadge.style.display = 'block';
-  teamBadge.textContent = `你在 ${team} 隊`;
+  teamBadge.textContent = `雿 ${team} ?;
   teamBadge.className = `team-badge badge-${team}`;
 
   // Watch game status
@@ -256,7 +259,7 @@ joinBtn.addEventListener('click', async () => {
   });
 });
 
-// ── Start game ──
+// ?? Start game ??
 function startGame(){
   lobbyEl.style.display = 'none';
   gameWrap.style.display = 'flex';
@@ -288,7 +291,7 @@ function startGame(){
   setInterval(tickBullets, 30);
 }
 
-// ── HUD ──
+// ?? HUD ??
 function updateHUD(){
   let a=0, b=0;
   Object.values(players).forEach(p => {
@@ -298,7 +301,7 @@ function updateHUD(){
   aliveBEl.textContent = b;
 }
 
-// ── Check win ──
+// ?? Check win ??
 function checkWin(){
   if(gameStatus !== 'playing') return;
   let a=0, b=0;
@@ -315,12 +318,12 @@ function setWinner(team){
 }
 function showResult(team){
   gameRunning = false;
-  resultTitle.textContent = team === myTeam ? '🎉 勝利！' : '💥 落敗';
+  resultTitle.textContent = team === myTeam ? '?? ?嚗? : '? ?賣?';
   resultTitle.style.color = team === 'A' ? '#e74c3c' : '#2ecc71';
   resultOverlay.style.display = 'flex';
 }
 
-// ── My movement ──
+// ?? My movement ??
 let myX = 0, myY = 0;
 let myAlive = true;
 function initMyPos(){
@@ -350,7 +353,7 @@ function pushMyPos(){
   update(ref(db, `${ROOM}/players/${myId}`), { x: nx, y: ny });
 }
 
-// ── Bullet ──
+// ?? Bullet ??
 let lastFire = 0;
 const FIRE_COOLDOWN = 400;
 let isFiring = false;
@@ -369,7 +372,7 @@ function tryFire(){
   });
 }
 
-// ── Tick bullets (owner drives its own bullets) ──
+// ?? Tick bullets (owner drives its own bullets) ??
 function tickBullets(){
   if(!myId || !gameRunning) return;
   const W = canvas.width;
@@ -409,7 +412,7 @@ function tickBullets(){
     update(ref(db, `${ROOM}/bullets/${bid}`), bdata));
 }
 
-// ── Render ──
+// ?? Render ??
 function loop(){
   if(!gameRunning) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -455,7 +458,7 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// ── Draw fighter ──
+// ?? Draw fighter ??
 function drawFighter(x, y, color, flipped, isMe, name){
   ctx.save();
   ctx.translate(x, y);
@@ -533,7 +536,7 @@ function drawFighter(x, y, color, flipped, isMe, name){
   ctx.restore();
 }
 
-// ── Stars ──
+// ?? Stars ??
 const stars = Array.from({length:80},()=>({
   x: Math.random()*2000, y:Math.random()*1200,
   r: Math.random()*1.5+0.3, a: Math.random()*0.6+0.2
@@ -549,7 +552,7 @@ function drawStars(){
   });
 }
 
-// ── Joystick ──
+// ?? Joystick ??
 const joyBase = joystickArea.getBoundingClientRect.bind(joystickArea);
 joystickArea.addEventListener('touchstart', e => {
   e.preventDefault();
@@ -592,7 +595,7 @@ document.addEventListener('mouseup', () => {
   joystickKnob.style.transform='';
 });
 
-// ── Fire button ──
+// ?? Fire button ??
 fireBtn.addEventListener('touchstart', e => {
   e.preventDefault(); fireBtn.classList.add('active');
   isFiring = true;
@@ -611,3 +614,4 @@ setInterval(() => { if(isFiring) tryFire(); }, FIRE_COOLDOWN);
 </script>
 </body>
 </html>
+
