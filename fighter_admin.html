@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>後台｜5v5 戰鬥機對戰</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:100%; height:100%; background:#05050f; color:#fff; font-family:Arial,sans-serif; overflow:hidden; }
+
+#top-bar {
+  height:52px; background:rgba(0,0,0,0.6);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 20px; border-bottom:1px solid rgba(100,150,255,0.2);
+}
+#top-bar h1 { font-size:1em; letter-spacing:.15em; color:#7eb8ff; }
+#top-bar .btn-start {
+  background:linear-gradient(135deg,#27ae60,#1a6b22);
+  border:none; color:#fff; padding:8px 28px; border-radius:6px;
+  font-size:.9em; cursor:pointer; letter-spacing:.1em;
+}
+#top-bar .btn-reset {
+  background:rgba(200,80,60,0.2); border:1px solid #c0392b;
+  color:#e74c3c; padding:8px 18px; border-radius:6px;
+  font-size:.85em; cursor:pointer; margin-left:10px;
+}
+#top-bar .status-badge {
+  font-size:.8em; padding:4px 12px; border-radius:12px;
+}
+.status-waiting { background:#1a2a1a; color:#2ecc71; border:1px solid #27ae60; }
+.status-playing { background:#1a1a2a; color:#7eb8ff; border:1px solid #3a6adf; }
+.status-ended   { background:#2a1a1a; color:#e74c3c; border:1px solid #c0392b; }
+
+#main {
+  display:flex; height:calc(100% - 52px);
+}
+
+/* ── Canvas ── */
+#arena-wrap {
+  flex:1; position:relative;
+}
+canvas#arena {
+  width:100%; height:100%; display:block;
+  background: radial-gradient(ellipse at 30% 50%, #0d1b3e 0%, #05050f 100%);
+}
+
+/* ── Side panel ── */
+#side {
+  width:220px; background:rgba(0,0,0,0.5);
+  border-left:1px solid rgba(100,150,255,0.15);
+  display:flex; flex-direction:column; padding:12px 10px; gap:14px;
+  overflow-y:auto;
+}
+.panel-title { font-size:.7em; letter-spacing:.15em; color:#555; text-transform:uppercase; margin-bottom:6px; }
+.score-row { display:flex; justify-content:space-between; align-items:center; }
+.score-num { font-size:2em; font-weight:bold; }
+.score-A .score-num { color:#e74c3c; }
+.score-B .score-num { color:#2ecc71; }
+.score-label { font-size:.75em; color:#888; }
+
+.player-list { display:flex; flex-direction:column; gap:4px; }
+.player-row {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 8px; border-radius:5px; font-size:.8em;
+  background:rgba(255,255,255,0.04);
+}
+.player-row.dead { opacity:.35; text-decoration:line-through; }
+.dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.dot-A { background:#e74c3c; }
+.dot-B { background:#2ecc71; }
+.player-name { flex:1; }
+.player-team { font-size:.7em; color:#666; }
+
+#winner-banner {
+  display:none; position:absolute; inset:0;
+  background:rgba(0,0,0,0.72);
+  align-items:center; justify-content:center; flex-direction:column;
+}
+#winner-banner .win-title { font-size:3em; font-weight:bold; letter-spacing:.2em; }
+#winner-banner .win-sub { font-size:1em; color:#aaa; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div id="top-bar">
+  <h1>✈ DOGFIGHT 5v5 後台</h1>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span class="status-badge status-waiting" id="status-badge">等待中</span>
+    <button class="btn-start" id="btn-start">▶ 開始遊戲</button>
+    <button class="btn-reset" id="btn-reset">重置</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="arena-wrap">
+    <canvas id="arena"></canvas>
+    <div id="winner-banner">
+      <div class="win-title" id="win-title"></div>
+      <div class="win-sub">遊戲結束</div>
+    </div>
+  </div>
+  <div id="side">
+    <div>
+      <div class="panel-title">存活數量</div>
+      <div class="score-row score-A">
+        <span class="score-label">🔴 A 隊</span>
+        <span class="score-num" id="alive-A">—</span>
+      </div>
+      <div class="score-row score-B" style="margin-top:6px;">
+        <span class="score-label">🟢 B 隊</span>
+        <span class="score-num" id="alive-B">—</span>
+      </div>
+    </div>
+    <div>
+      <div class="panel-title">玩家名單</div>
+      <div class="player-list" id="player-list"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, update, remove }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDummy_REPLACE_ME",
+  authDomain: "kuya-candy-game.firebaseapp.com",
+  databaseURL: "https://kuya-candy-game-default-rtdb.firebaseio.com",
+  projectId: "kuya-candy-game"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+const ROOM = "fighter_room_1";
+
+const canvas   = document.getElementById('arena');
+const ctx      = canvas.getContext('2d');
+const aliveAEl = document.getElementById('alive-A');
+const aliveBEl = document.getElementById('alive-B');
+const playerListEl = document.getElementById('player-list');
+const statusBadge  = document.getElementById('status-badge');
+const winnerBanner = document.getElementById('winner-banner');
+const winTitle     = document.getElementById('win-title');
+
+let players = {}, bullets = {}, gameStatus = 'waiting';
+
+function resizeCanvas(){
+  canvas.width  = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ── Watch ──
+onValue(ref(db, `${ROOM}/players`), snap => {
+  players = snap.val() || {};
+  updateSide();
+});
+onValue(ref(db, `${ROOM}/bullets`), snap => {
+  bullets = snap.val() || {};
+});
+onValue(ref(db, `${ROOM}/status`), snap => {
+  gameStatus = snap.val() || 'waiting';
+  updateStatusBadge();
+});
+onValue(ref(db, `${ROOM}/winner`), snap => {
+  const w = snap.val();
+  if(w){
+    winTitle.textContent = `${w === 'A' ? '🔴' : '🟢'} ${w} 隊勝利！`;
+    winTitle.style.color = w === 'A' ? '#e74c3c' : '#2ecc71';
+    winnerBanner.style.display = 'flex';
+  }
+});
+
+function updateStatusBadge(){
+  statusBadge.className = 'status-badge';
+  if(gameStatus==='waiting'){ statusBadge.textContent='等待中'; statusBadge.classList.add('status-waiting'); }
+  else if(gameStatus==='playing'){ statusBadge.textContent='進行中'; statusBadge.classList.add('status-playing'); }
+  else { statusBadge.textContent='結束'; statusBadge.classList.add('status-ended'); }
+}
+
+function updateSide(){
+  let a=0, b=0;
+  const rows = [];
+  Object.values(players).forEach(p => {
+    if(p.alive){ if(p.team==='A') a++; else b++; }
+    rows.push(p);
+  });
+  aliveAEl.textContent = a;
+  aliveBEl.textContent = b;
+  playerListEl.innerHTML = rows.map(p => `
+    <div class="player-row${p.alive?'':' dead'}">
+      <div class="dot dot-${p.team}"></div>
+      <div class="player-name">${p.name}</div>
+      <div class="player-team">${p.team}隊</div>
+    </div>
+  `).join('');
+}
+
+// ── Buttons ──
+document.getElementById('btn-start').addEventListener('click', () => {
+  update(ref(db, ROOM), { status: 'playing', winner: null });
+});
+document.getElementById('btn-reset').addEventListener('click', async () => {
+  if(!confirm('確定重置這場遊戲？所有玩家資料將清除。')) return;
+  await remove(ref(db, ROOM));
+  winnerBanner.style.display = 'none';
+  players = {}; bullets = {};
+  updateSide();
+});
+
+// ── Render ──
+const stars = Array.from({length:80},()=>({
+  x:Math.random()*3000, y:Math.random()*2000, r:Math.random()*1.5+0.3, a:Math.random()*0.5+0.2
+}));
+
+function drawStars(){
+  stars.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x % canvas.width, s.y % canvas.height, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+    ctx.fill();
+  });
+}
+
+function drawFighter(x, y, color, flipped, name, alive){
+  if(!alive) return;
+  ctx.save();
+  ctx.translate(x, y);
+  if(flipped) ctx.scale(-1,1);
+  ctx.shadowColor = color; ctx.shadowBlur = 8;
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(-14,-5); ctx.lineTo(-18,0); ctx.lineTo(-14,5); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-18); ctx.lineTo(-16,-14); ctx.lineTo(-8,0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,18); ctx.lineTo(-16,14); ctx.lineTo(-8,0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-14,-3); ctx.lineTo(-22,-10); ctx.lineTo(-20,-3); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-14,3); ctx.lineTo(-22,10); ctx.lineTo(-20,3); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0; ctx.restore();
+  ctx.save();
+  ctx.font='11px Arial'; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.textAlign='center';
+  ctx.fillText(name||'', x, y+32);
+  ctx.restore();
+}
+
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawStars();
+
+  // Divider
+  ctx.strokeStyle='rgba(100,150,255,0.2)'; ctx.setLineDash([6,8]); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(canvas.width/2,0); ctx.lineTo(canvas.width/2,canvas.height); ctx.stroke();
+  ctx.setLineDash([]);
+
+  Object.values(players).forEach(p => {
+    const col = p.team==='A' ? '#e74c3c' : '#2ecc71';
+    drawFighter(p.x, p.y, col, p.team==='B', p.name, p.alive);
+  });
+
+  Object.values(bullets).forEach(b => {
+    const col = b.team==='A' ? '#ff8a80' : '#80ff9e';
+    ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2);
+    ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=10;
+    ctx.fill(); ctx.shadowBlur=0;
+  });
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

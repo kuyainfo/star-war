@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>5v5 戰鬥機對戰</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; background:#0a0a1a; font-family:'Arial',sans-serif; touch-action:none; }
+
+/* ── LOBBY ── */
+#lobby {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  width:100%; height:100%; color:#fff;
+  background: radial-gradient(ellipse at center, #0d1b3e 0%, #0a0a1a 100%);
+}
+#lobby h1 { font-size:1.4em; letter-spacing:.2em; color:#7eb8ff; margin-bottom:8px; }
+#lobby .sub { font-size:.85em; color:#aaa; margin-bottom:28px; }
+#lobby input {
+  background:#1a2a4a; border:1px solid #3a5a9a; color:#fff;
+  padding:10px 18px; border-radius:8px; font-size:1em; width:220px;
+  text-align:center; outline:none; margin-bottom:16px;
+}
+#lobby button {
+  background:linear-gradient(135deg,#1e5fd4,#0d3a8a); color:#fff;
+  border:none; border-radius:8px; padding:12px 36px; font-size:1em;
+  cursor:pointer; letter-spacing:.1em;
+}
+#lobby .wait-msg { margin-top:20px; font-size:.85em; color:#7eb8ff; display:none; }
+#lobby .team-badge {
+  margin-top:12px; padding:6px 20px; border-radius:20px; font-size:.9em; font-weight:bold; display:none;
+}
+.badge-A { background:#c0392b22; border:1px solid #e74c3c; color:#e74c3c; }
+.badge-B { background:#1a6b2222; border:1px solid #2ecc71; color:#2ecc71; }
+
+/* ── GAME CANVAS AREA ── */
+#game-wrap {
+  display:none; width:100%; height:100%; position:relative; flex-direction:column;
+}
+canvas#arena {
+  display:block; width:100%; flex:1;
+  background: radial-gradient(ellipse at 30% 50%, #0d1b3e 0%, #05050f 100%);
+}
+
+/* ── CONTROLS (使用端專用) ── */
+#controls {
+  display:none;
+  position:absolute; bottom:0; left:0; right:0;
+  height:130px; pointer-events:none;
+  padding: 0 16px 12px;
+  align-items:flex-end; justify-content:space-between;
+}
+#joystick-area {
+  width:110px; height:110px; pointer-events:all;
+  position:relative;
+}
+#joystick-base {
+  width:110px; height:110px; border-radius:50%;
+  background:rgba(255,255,255,0.06); border:2px solid rgba(255,255,255,0.18);
+  position:absolute; top:0; left:0;
+}
+#joystick-knob {
+  width:44px; height:44px; border-radius:50%;
+  background:radial-gradient(circle, rgba(126,184,255,0.7), rgba(30,95,212,0.5));
+  border:2px solid rgba(126,184,255,0.8);
+  position:absolute; top:33px; left:33px;
+  transition: none;
+}
+#fire-btn {
+  width:80px; height:80px; border-radius:50%; pointer-events:all;
+  background:radial-gradient(circle, #e74c3c, #8b0000);
+  border:3px solid #ff6b6b;
+  box-shadow: 0 0 18px rgba(231,76,60,0.6);
+  font-size:.75em; color:#fff; font-weight:bold; letter-spacing:.05em;
+  display:flex; align-items:center; justify-content:center;
+  user-select:none; -webkit-user-select:none;
+  margin-bottom:15px;
+}
+#fire-btn.active { background:radial-gradient(circle, #ff8a80, #e74c3c); box-shadow:0 0 30px rgba(255,100,80,0.9); }
+
+/* ── HUD ── */
+#hud {
+  position:absolute; top:0; left:0; right:0;
+  height:36px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 12px;
+  background:rgba(0,0,0,0.45);
+  pointer-events:none;
+}
+#hud .team-score {
+  font-size:.85em; font-weight:bold; letter-spacing:.08em;
+}
+#hud .score-A { color:#e74c3c; }
+#hud .score-B { color:#2ecc71; }
+#hud .vs { color:#555; font-size:.75em; }
+#center-line {
+  position:absolute; top:36px; bottom:130px; left:50%;
+  width:1px; background:rgba(100,150,255,0.25);
+  pointer-events:none;
+}
+/* ── RESULT OVERLAY ── */
+#result-overlay {
+  display:none; position:absolute; inset:0;
+  background:rgba(0,0,0,0.7);
+  align-items:center; justify-content:center; flex-direction:column;
+  color:#fff;
+}
+#result-overlay .result-title { font-size:2em; font-weight:bold; letter-spacing:.2em; margin-bottom:12px; }
+#result-overlay .result-sub { font-size:1em; color:#aaa; }
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby">
+  <h1>✈ DOGFIGHT 5v5</h1>
+  <div class="sub">輸入你的代號加入戰場</div>
+  <input id="name-input" type="text" maxlength="8" placeholder="代號（最多8字）">
+  <button id="join-btn">加入戰局</button>
+  <div class="wait-msg" id="wait-msg">等待主辦方開始遊戲…</div>
+  <div class="team-badge" id="team-badge"></div>
+</div>
+
+<!-- GAME -->
+<div id="game-wrap">
+  <div id="hud">
+    <div class="team-score score-A">🔴 A隊 <span id="alive-A">5</span></div>
+    <div class="vs">VS</div>
+    <div class="team-score score-B"><span id="alive-B">5</span> B隊 🟢</div>
+  </div>
+  <div id="center-line"></div>
+  <canvas id="arena"></canvas>
+  <div id="controls">
+    <div id="joystick-area">
+      <div id="joystick-base"></div>
+      <div id="joystick-knob"></div>
+    </div>
+    <div id="fire-btn">FIRE</div>
+  </div>
+  <div id="result-overlay">
+    <div class="result-title" id="result-title"></div>
+    <div class="result-sub">遊戲結束</div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, remove, push, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── Firebase 設定（沿用 candy-game 的 DB，改 path 隔離） ──
+const firebaseConfig = {
+  apiKey: "AIzaSyDummy_REPLACE_ME",
+  authDomain: "kuya-candy-game.firebaseapp.com",
+  databaseURL: "https://kuya-candy-game-default-rtdb.firebaseio.com",
+  projectId: "kuya-candy-game"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+const ROOM = "fighter_room_1";
+
+// ── DOM ──
+const lobbyEl   = document.getElementById('lobby');
+const gameWrap  = document.getElementById('game-wrap');
+const nameInput = document.getElementById('name-input');
+const joinBtn   = document.getElementById('join-btn');
+const waitMsg   = document.getElementById('wait-msg');
+const teamBadge = document.getElementById('team-badge');
+const canvas    = document.getElementById('arena');
+const ctx       = canvas.getContext('2d');
+const controls  = document.getElementById('controls');
+const joystickArea = document.getElementById('joystick-area');
+const joystickKnob = document.getElementById('joystick-knob');
+const fireBtn   = document.getElementById('fire-btn');
+const aliveAEl  = document.getElementById('alive-A');
+const aliveBEl  = document.getElementById('alive-B');
+const resultOverlay = document.getElementById('result-overlay');
+const resultTitle   = document.getElementById('result-title');
+
+// ── State ──
+let myId    = null;
+let myTeam  = null;
+let myName  = '';
+let gameRunning = false;
+let players = {};   // { id: {name,team,x,y,alive} }
+let bullets = {};   // { id: {x,y,team,ownerId} }
+let gameStatus = 'waiting';
+let winner = null;
+
+// Joystick state
+let joyActive = false;
+let joyDx = 0, joyDy = 0;
+const JOY_R = 55; // base radius
+const KNOB_R = 22;
+
+// ── Canvas size ──
+function resizeCanvas(){
+  canvas.width  = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ── Join ──
+joinBtn.addEventListener('click', async () => {
+  const name = nameInput.value.trim();
+  if(!name){ nameInput.focus(); return; }
+  myName = name;
+
+  // Read current players to assign team
+  const snap = await get(ref(db, `${ROOM}/players`));
+  const existing = snap.val() || {};
+  let countA = 0, countB = 0;
+  Object.values(existing).forEach(p => {
+    if(p.team==='A') countA++;
+    else countB++;
+  });
+
+  // Random with balance
+  let team;
+  if(countA >= 5 && countB < 5) team = 'B';
+  else if(countB >= 5 && countA < 5) team = 'A';
+  else team = Math.random() < 0.5 ? 'A' : 'B';
+
+  myTeam = team;
+
+  // Initial position
+  const canvasW = window.innerWidth;
+  const canvasH = window.innerHeight - 36 - 130;
+  const x = team === 'A'
+    ? 60 + Math.random() * (canvasW * 0.35)
+    : canvasW * 0.55 + Math.random() * (canvasW * 0.35);
+  const y = 60 + Math.random() * (canvasH - 120);
+
+  const playerRef = push(ref(db, `${ROOM}/players`));
+  myId = playerRef.key;
+
+  await set(playerRef, { name, team, x, y, alive: true });
+
+  // Show lobby wait
+  joinBtn.style.display = 'none';
+  nameInput.style.display = 'none';
+  waitMsg.style.display = 'block';
+  teamBadge.style.display = 'block';
+  teamBadge.textContent = `你在 ${team} 隊`;
+  teamBadge.className = `team-badge badge-${team}`;
+
+  // Watch game status
+  onValue(ref(db, `${ROOM}/status`), snap => {
+    const s = snap.val();
+    if(s === 'playing' && gameStatus !== 'playing'){
+      gameStatus = 'playing';
+      startGame();
+    } else if(s === 'ended'){
+      gameStatus = 'ended';
+    }
+  });
+});
+
+// ── Start game ──
+function startGame(){
+  lobbyEl.style.display = 'none';
+  gameWrap.style.display = 'flex';
+  controls.style.display = 'flex';
+  resizeCanvas();
+
+  // Watch players
+  onValue(ref(db, `${ROOM}/players`), snap => {
+    players = snap.val() || {};
+    updateHUD();
+    checkWin();
+  });
+  // Watch bullets
+  onValue(ref(db, `${ROOM}/bullets`), snap => {
+    bullets = snap.val() || {};
+  });
+  // Watch winner
+  onValue(ref(db, `${ROOM}/winner`), snap => {
+    winner = snap.val();
+    if(winner){ showResult(winner); }
+  });
+
+  gameRunning = true;
+  requestAnimationFrame(loop);
+
+  // Movement loop
+  setInterval(pushMyPos, 50);
+  // Bullet move loop (each client moves own bullets)
+  setInterval(tickBullets, 30);
+}
+
+// ── HUD ──
+function updateHUD(){
+  let a=0, b=0;
+  Object.values(players).forEach(p => {
+    if(p.alive){ if(p.team==='A') a++; else b++; }
+  });
+  aliveAEl.textContent = a;
+  aliveBEl.textContent = b;
+}
+
+// ── Check win ──
+function checkWin(){
+  if(gameStatus !== 'playing') return;
+  let a=0, b=0;
+  Object.values(players).forEach(p => {
+    if(p.alive){ if(p.team==='A') a++; else b++; }
+  });
+  if(a===0 && b===0) return;
+  if(a===0) setWinner('B');
+  else if(b===0) setWinner('A');
+}
+function setWinner(team){
+  if(winner) return;
+  update(ref(db, ROOM), { status:'ended', winner: team });
+}
+function showResult(team){
+  gameRunning = false;
+  resultTitle.textContent = team === myTeam ? '🎉 勝利！' : '💥 落敗';
+  resultTitle.style.color = team === 'A' ? '#e74c3c' : '#2ecc71';
+  resultOverlay.style.display = 'flex';
+}
+
+// ── My movement ──
+let myX = 0, myY = 0;
+let myAlive = true;
+function initMyPos(){
+  if(players[myId]){
+    myX = players[myId].x;
+    myY = players[myId].y;
+    myAlive = players[myId].alive;
+  }
+}
+
+function pushMyPos(){
+  if(!myId || !myAlive) return;
+  const W = canvas.width, H = canvas.height;
+  const SPEED = 3;
+  const halfW = W / 2;
+
+  let nx = myX + joyDx * SPEED;
+  let ny = myY + joyDy * SPEED;
+
+  // Boundary
+  const minX = myTeam === 'A' ? 20 : halfW + 4;
+  const maxX = myTeam === 'A' ? halfW - 4 : W - 20;
+  nx = Math.max(minX, Math.min(maxX, nx));
+  ny = Math.max(30, Math.min(H - 30, ny));
+
+  myX = nx; myY = ny;
+  update(ref(db, `${ROOM}/players/${myId}`), { x: nx, y: ny });
+}
+
+// ── Bullet ──
+let lastFire = 0;
+const FIRE_COOLDOWN = 400;
+let isFiring = false;
+
+function tryFire(){
+  const now = Date.now();
+  if(now - lastFire < FIRE_COOLDOWN) return;
+  if(!myAlive) return;
+  lastFire = now;
+  const bulletRef = push(ref(db, `${ROOM}/bullets`));
+  set(bulletRef, {
+    x: myX, y: myY,
+    vx: myTeam === 'A' ? 8 : -8,
+    team: myTeam, ownerId: myId,
+    born: now
+  });
+}
+
+// ── Tick bullets (owner drives its own bullets) ──
+function tickBullets(){
+  if(!myId || !gameRunning) return;
+  const W = canvas.width;
+  const updates = {};
+  const toRemove = [];
+
+  Object.entries(bullets).forEach(([bid, b]) => {
+    if(b.ownerId !== myId) return;
+    const nx = (b.x || 0) + (b.vx || 0);
+
+    // Out of bounds
+    if(nx < 0 || nx > W){
+      toRemove.push(bid); return;
+    }
+    // TTL 3s
+    if(Date.now() - b.born > 3000){
+      toRemove.push(bid); return;
+    }
+
+    // Hit detection
+    let hit = false;
+    Object.entries(players).forEach(([pid, p]) => {
+      if(!p.alive || p.team === myTeam) return;
+      const dx = nx - p.x, dy = (b.y||0) - p.y;
+      if(Math.abs(dx) < 22 && Math.abs(dy) < 18){
+        hit = true;
+        // Kill
+        update(ref(db, `${ROOM}/players/${pid}`), { alive: false });
+        toRemove.push(bid);
+      }
+    });
+    if(!hit) updates[bid] = { ...b, x: nx };
+  });
+
+  toRemove.forEach(bid => remove(ref(db, `${ROOM}/bullets/${bid}`)));
+  Object.entries(updates).forEach(([bid, bdata]) =>
+    update(ref(db, `${ROOM}/bullets/${bid}`), bdata));
+}
+
+// ── Render ──
+function loop(){
+  if(!gameRunning) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Starfield (static seed)
+  drawStars();
+
+  // Center divider
+  ctx.strokeStyle = 'rgba(100,150,255,0.2)';
+  ctx.setLineDash([6,8]);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(canvas.width/2, 0);
+  ctx.lineTo(canvas.width/2, canvas.height);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Players
+  Object.entries(players).forEach(([pid, p]) => {
+    if(!p.alive) return;
+    const isMe = pid === myId;
+    const col = p.team === 'A' ? '#e74c3c' : '#2ecc71';
+    drawFighter(p.x, p.y, col, p.team === 'B', isMe, p.name);
+  });
+
+  // Bullets
+  Object.values(bullets).forEach(b => {
+    const col = b.team === 'A' ? '#ff8a80' : '#80ff9e';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 4, 0, Math.PI*2);
+    ctx.fillStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // Check if I'm dead
+  if(players[myId] && !players[myId].alive && myAlive){
+    myAlive = false;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// ── Draw fighter ──
+function drawFighter(x, y, color, flipped, isMe, name){
+  ctx.save();
+  ctx.translate(x, y);
+  if(flipped) ctx.scale(-1, 1);
+
+  // Glow
+  ctx.shadowColor = color;
+  ctx.shadowBlur = isMe ? 18 : 8;
+
+  // Body (SVG path redrawn on canvas)
+  ctx.fillStyle = color;
+  // Simplified fighter silhouette
+  ctx.beginPath();
+  // Fuselage
+  ctx.moveTo(18, 0);
+  ctx.lineTo(-14, -5);
+  ctx.lineTo(-18, 0);
+  ctx.lineTo(-14, 5);
+  ctx.closePath();
+  ctx.fill();
+  // Wing
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-10, -18);
+  ctx.lineTo(-16, -14);
+  ctx.lineTo(-8, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-10, 18);
+  ctx.lineTo(-16, 14);
+  ctx.lineTo(-8, 0);
+  ctx.closePath();
+  ctx.fill();
+  // Tail
+  ctx.beginPath();
+  ctx.moveTo(-14, -3);
+  ctx.lineTo(-22, -10);
+  ctx.lineTo(-20, -3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-14, 3);
+  ctx.lineTo(-22, 10);
+  ctx.lineTo(-20, 3);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // Arrow above (isMe only)
+  if(isMe){
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 30);
+    ctx.lineTo(x - 7, y - 42);
+    ctx.lineTo(x + 7, y - 42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // Name
+  ctx.save();
+  ctx.font = '11px Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.textAlign = 'center';
+  ctx.fillText(name || '', x, y + 32);
+  ctx.restore();
+}
+
+// ── Stars ──
+const stars = Array.from({length:80},()=>({
+  x: Math.random()*2000, y:Math.random()*1200,
+  r: Math.random()*1.5+0.3, a: Math.random()*0.6+0.2
+}));
+function drawStars(){
+  stars.forEach(s => {
+    const sx = s.x % canvas.width;
+    const sy = s.y % canvas.height;
+    ctx.beginPath();
+    ctx.arc(sx, sy, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+    ctx.fill();
+  });
+}
+
+// ── Joystick ──
+const joyBase = joystickArea.getBoundingClientRect.bind(joystickArea);
+joystickArea.addEventListener('touchstart', e => {
+  e.preventDefault();
+  joyActive = true;
+}, {passive:false});
+joystickArea.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if(!joyActive) return;
+  const t = e.touches[0];
+  const r = joystickArea.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2;
+  let dx = t.clientX - cx, dy = t.clientY - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if(dist > JOY_R){ dx = dx/dist*JOY_R; dy = dy/dist*JOY_R; }
+  joystickKnob.style.transform = `translate(${dx}px,${dy}px)`;
+  joyDx = dx / JOY_R; joyDy = dy / JOY_R;
+}, {passive:false});
+joystickArea.addEventListener('touchend', e => {
+  e.preventDefault();
+  joyActive = false; joyDx = 0; joyDy = 0;
+  joystickKnob.style.transform = '';
+}, {passive:false});
+
+// Mouse joystick fallback
+let mouseJoy = false;
+joystickArea.addEventListener('mousedown', e => { mouseJoy = true; });
+document.addEventListener('mousemove', e => {
+  if(!mouseJoy) return;
+  const r = joystickArea.getBoundingClientRect();
+  const cx = r.left+r.width/2, cy = r.top+r.height/2;
+  let dx = e.clientX-cx, dy = e.clientY-cy;
+  const dist = Math.sqrt(dx*dx+dy*dy);
+  if(dist>JOY_R){ dx=dx/dist*JOY_R; dy=dy/dist*JOY_R; }
+  joystickKnob.style.transform = `translate(${dx}px,${dy}px)`;
+  joyDx = dx/JOY_R; joyDy = dy/JOY_R;
+});
+document.addEventListener('mouseup', () => {
+  if(!mouseJoy) return;
+  mouseJoy=false; joyDx=0; joyDy=0;
+  joystickKnob.style.transform='';
+});
+
+// ── Fire button ──
+fireBtn.addEventListener('touchstart', e => {
+  e.preventDefault(); fireBtn.classList.add('active');
+  isFiring = true;
+  tryFire();
+}, {passive:false});
+fireBtn.addEventListener('touchend', e => {
+  e.preventDefault(); fireBtn.classList.remove('active');
+  isFiring = false;
+}, {passive:false});
+fireBtn.addEventListener('mousedown', () => { isFiring=true; fireBtn.classList.add('active'); tryFire(); });
+document.addEventListener('mouseup', () => { isFiring=false; fireBtn.classList.remove('active'); });
+
+// Auto-fire while held
+setInterval(() => { if(isFiring) tryFire(); }, FIRE_COOLDOWN);
+
+</script>
+</body>
+</html>
