@@ -56,6 +56,7 @@ canvas#arena { display:block; width:100%; flex:1; }
   user-select:none; -webkit-user-select:none; margin-bottom:15px;
 }
 #fire-btn.active { background:radial-gradient(circle,#ff8a80,#e74c3c); box-shadow:0 0 30px rgba(255,100,80,0.9); }
+#fire-btn.locked { background:radial-gradient(circle,#555,#333); border-color:#666; box-shadow:none; }
 #hud {
   position:absolute; top:0; left:0; right:0; height:36px;
   display:flex; align-items:center; justify-content:space-between;
@@ -67,6 +68,11 @@ canvas#arena { display:block; width:100%; flex:1; }
 #center-line {
   position:absolute; top:36px; bottom:130px; left:50%;
   width:1px; background:rgba(100,150,255,0.25); pointer-events:none;
+}
+#countdown-overlay {
+  display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-size:3.5em; font-weight:bold; color:#ffd700;
+  text-shadow:0 0 30px rgba(255,215,0,0.8); pointer-events:none; letter-spacing:.1em;
 }
 #result-overlay {
   display:none; position:absolute; inset:0; background:rgba(0,0,0,0.75);
@@ -95,12 +101,13 @@ canvas#arena { display:block; width:100%; flex:1; }
   </div>
   <div id="center-line"></div>
   <canvas id="arena"></canvas>
+  <div id="countdown-overlay" id="countdown-overlay"></div>
   <div id="controls">
     <div id="joystick-area">
       <div id="joystick-base"></div>
       <div id="joystick-knob"></div>
     </div>
-    <div id="fire-btn">FIRE</div>
+    <div id="fire-btn" id="fire-btn">FIRE</div>
   </div>
   <div id="result-overlay">
     <div class="result-title" id="result-title"></div>
@@ -140,6 +147,7 @@ const joystickKnob  = document.getElementById("joystick-knob");
 const fireBtn       = document.getElementById("fire-btn");
 const aliveAEl      = document.getElementById("alive-A");
 const aliveBEl      = document.getElementById("alive-B");
+const countdownEl   = document.getElementById("countdown-overlay");
 const resultOverlay = document.getElementById("result-overlay");
 const resultTitle   = document.getElementById("result-title");
 
@@ -147,9 +155,11 @@ let myId=null, myTeam=null, myName="";
 let gameRunning=false, players={}, bullets={};
 let gameStatus="waiting", winner=null;
 let joyActive=false, joyDx=0, joyDy=0;
-let myX=0, myY=0, myAlive=true;
+let myX=0, myY=0, myAlive=true, myHp=3;
 let lastFire=0, isFiring=false;
-const JOY_R=55, FIRE_CD=400;
+let fireLocked=true;   // 5-sec grace period
+let gameStartTime=0;
+const JOY_R=55, FIRE_CD=400, MOVE_SPEED=6, GRACE=5000;
 
 function resizeCanvas(){ canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight; }
 window.addEventListener("resize", resizeCanvas);
@@ -167,16 +177,22 @@ joinBtn.addEventListener("click", async () => {
   else if(cB>=5&&cA<5) team="A";
   else team=Math.random()<0.5?"A":"B";
   myTeam=team;
+
+  // spawn: y within 20%-80% of arena height
   const W=window.innerWidth, H=window.innerHeight-36-130;
+  const yMin=H*0.2, yMax=H*0.8;
   myX = team==="A" ? 60+Math.random()*(W*0.35) : W*0.55+Math.random()*(W*0.35);
-  myY = 60+Math.random()*(H-120);
+  myY = yMin + Math.random()*(yMax-yMin);
+
   const pRef=push(ref(db,ROOM+"/players"));
   myId=pRef.key;
-  await set(pRef,{name,team,x:myX,y:myY,alive:true});
+  await set(pRef,{name,team,x:myX,y:myY,alive:true,hp:3});
+
   joinBtn.style.display="none"; nameInput.style.display="none";
   waitMsg.style.display="block"; teamBadge.style.display="block";
   teamBadge.textContent="Team "+team;
   teamBadge.className="team-badge badge-"+team;
+
   onValue(ref(db,ROOM+"/status"), snap=>{
     const s=snap.val();
     if(s==="playing"&&gameStatus!=="playing"){ gameStatus="playing"; startGame(); }
@@ -189,9 +205,15 @@ function startGame(){
   gameWrap.style.display="flex";
   controls.style.display="flex";
   resizeCanvas();
+  gameStartTime = Date.now();
+  fireLocked = true;
+  fireBtn.classList.add("locked");
+  countdownEl.style.display="block";
+
   onValue(ref(db,ROOM+"/players"), snap=>{ players=snap.val()||{}; updateHUD(); checkWin(); });
   onValue(ref(db,ROOM+"/bullets"), snap=>{ bullets=snap.val()||{}; });
   onValue(ref(db,ROOM+"/winner"), snap=>{ winner=snap.val(); if(winner) showResult(winner); });
+
   gameRunning=true;
   requestAnimationFrame(loop);
   setInterval(pushMyPos,50);
@@ -221,20 +243,21 @@ function showResult(team){
 function pushMyPos(){
   if(!myId||!myAlive) return;
   const W=canvas.width, H=canvas.height, hw=W/2;
-  let nx=myX+joyDx*3, ny=myY+joyDy*3;
+  let nx=myX+joyDx*MOVE_SPEED, ny=myY+joyDy*MOVE_SPEED;
   const minX=myTeam==="A"?20:hw+4, maxX=myTeam==="A"?hw-4:W-20;
   nx=Math.max(minX,Math.min(maxX,nx));
-  ny=Math.max(30,Math.min(H-30,ny));
+  ny=Math.max(40,Math.min(H-40,ny));
   myX=nx; myY=ny;
   update(ref(db,ROOM+"/players/"+myId),{x:nx,y:ny});
 }
 
 function tryFire(){
+  if(fireLocked) return;
   const now=Date.now();
   if(now-lastFire<FIRE_CD||!myAlive) return;
   lastFire=now;
   const bRef=push(ref(db,ROOM+"/bullets"));
-  set(bRef,{x:myX,y:myY,vx:myTeam==="A"?8:-8,team:myTeam,ownerId:myId,born:now});
+  set(bRef,{x:myX,y:myY,vx:myTeam==="A"?10:-10,team:myTeam,ownerId:myId,born:now});
 }
 
 function tickBullets(){
@@ -247,9 +270,14 @@ function tickBullets(){
     let hit=false;
     Object.entries(players).forEach(([pid,p])=>{
       if(!p.alive||p.team===myTeam) return;
-      if(Math.abs(nx-p.x)<22&&Math.abs((b.y||0)-p.y)<18){
+      if(Math.abs(nx-p.x)<24&&Math.abs((b.y||0)-p.y)<20){
         hit=true;
-        update(ref(db,ROOM+"/players/"+pid),{alive:false});
+        const newHp=(p.hp||1)-1;
+        if(newHp<=0){
+          update(ref(db,ROOM+"/players/"+pid),{alive:false,hp:0});
+        } else {
+          update(ref(db,ROOM+"/players/"+pid),{hp:newHp});
+        }
         toRemove.push(bid);
       }
     });
@@ -264,21 +292,43 @@ const stars=Array.from({length:80},()=>({x:Math.random()*2000,y:Math.random()*12
 function loop(){
   if(!gameRunning) return;
   const W=canvas.width, H=canvas.height;
+
+  // grace period check
+  const elapsed=Date.now()-gameStartTime;
+  if(fireLocked && elapsed>=GRACE){
+    fireLocked=false;
+    fireBtn.classList.remove("locked");
+    countdownEl.style.display="none";
+  }
+  if(fireLocked){
+    const remaining=Math.ceil((GRACE-elapsed)/1000);
+    countdownEl.textContent="READY... "+remaining;
+  }
+
   ctx.fillStyle="#05050f"; ctx.fillRect(0,0,W,H);
   stars.forEach(s=>{ ctx.beginPath(); ctx.arc(s.x%W,s.y%H,s.r,0,Math.PI*2); ctx.fillStyle="rgba(255,255,255,"+s.a+")"; ctx.fill(); });
   ctx.strokeStyle="rgba(100,150,255,0.25)"; ctx.setLineDash([6,8]); ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
-  Object.entries(players).forEach(([pid,p])=>{ if(!p.alive) return; drawFighter(p.x,p.y,p.team==="A"?"#e74c3c":"#2ecc71",p.team==="B",pid===myId,p.name); });
+
+  Object.entries(players).forEach(([pid,p])=>{
+    if(!p.alive) return;
+    drawFighter(p.x,p.y,p.team==="A"?"#e74c3c":"#2ecc71",p.team==="B",pid===myId,p.name,p.hp||3);
+  });
+
+  // draw bullets as rectangles
   Object.values(bullets).forEach(b=>{
     const col=b.team==="A"?"#ff8a80":"#80ff9e";
-    ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2);
-    ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+    ctx.save();
+    ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=8;
+    ctx.fillRect(b.x-12,b.y-3,24,6);
+    ctx.shadowBlur=0; ctx.restore();
   });
+
   if(players[myId]&&!players[myId].alive&&myAlive) myAlive=false;
   requestAnimationFrame(loop);
 }
 
-function drawFighter(x,y,color,flipped,isMe,name){
+function drawFighter(x,y,color,flipped,isMe,name,hp){
   ctx.save(); ctx.translate(x,y); if(flipped) ctx.scale(-1,1);
   ctx.shadowColor=color; ctx.shadowBlur=isMe?18:8; ctx.fillStyle=color;
   ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(-14,-5); ctx.lineTo(-18,0); ctx.lineTo(-14,5); ctx.closePath(); ctx.fill();
@@ -287,12 +337,24 @@ function drawFighter(x,y,color,flipped,isMe,name){
   ctx.beginPath(); ctx.moveTo(-14,-3); ctx.lineTo(-22,-10); ctx.lineTo(-20,-3); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(-14,3); ctx.lineTo(-22,10); ctx.lineTo(-20,3); ctx.closePath(); ctx.fill();
   ctx.shadowBlur=0; ctx.restore();
+
+  // arrow above (isMe)
   if(isMe){
     ctx.save(); ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=12;
-    ctx.beginPath(); ctx.moveTo(x,y-30); ctx.lineTo(x-7,y-42); ctx.lineTo(x+7,y-42); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x,y-34); ctx.lineTo(x-7,y-46); ctx.lineTo(x+7,y-46); ctx.closePath(); ctx.fill();
     ctx.shadowBlur=0; ctx.restore();
   }
-  ctx.save(); ctx.font="11px Arial"; ctx.fillStyle="rgba(255,255,255,0.75)";
+
+  // HP hearts above fighter
+  ctx.save();
+  const hearts=hp||0;
+  const heartStr = hearts===3?"♥ ♥ ♥": hearts===2?"♥ ♥  ": hearts===1?"♥    ":"     ";
+  ctx.font="13px Arial"; ctx.fillStyle=color; ctx.textAlign="center";
+  ctx.fillText(heartStr, x, y-52);
+  ctx.restore();
+
+  // name
+  ctx.save(); ctx.font="11px Arial"; ctx.fillStyle="rgba(255,255,255,0.7)";
   ctx.textAlign="center"; ctx.fillText(name||"",x,y+32); ctx.restore();
 }
 
@@ -323,11 +385,11 @@ document.addEventListener("mousemove",e=>{
 });
 document.addEventListener("mouseup",()=>{ if(!mj) return; mj=false; joyDx=0; joyDy=0; joystickKnob.style.transform=""; });
 
-fireBtn.addEventListener("touchstart",e=>{ e.preventDefault(); fireBtn.classList.add("active"); isFiring=true; tryFire(); },{passive:false});
+fireBtn.addEventListener("touchstart",e=>{ e.preventDefault(); if(fireLocked) return; fireBtn.classList.add("active"); isFiring=true; tryFire(); },{passive:false});
 fireBtn.addEventListener("touchend",e=>{ e.preventDefault(); fireBtn.classList.remove("active"); isFiring=false; },{passive:false});
-fireBtn.addEventListener("mousedown",()=>{ isFiring=true; fireBtn.classList.add("active"); tryFire(); });
+fireBtn.addEventListener("mousedown",()=>{ if(fireLocked) return; isFiring=true; fireBtn.classList.add("active"); tryFire(); });
 document.addEventListener("mouseup",()=>{ isFiring=false; fireBtn.classList.remove("active"); });
-setInterval(()=>{ if(isFiring) tryFire(); },FIRE_CD);
+setInterval(()=>{ if(isFiring&&!fireLocked) tryFire(); },FIRE_CD);
 </script>
 </body>
 </html>

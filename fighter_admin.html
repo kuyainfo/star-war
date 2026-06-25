@@ -13,16 +13,8 @@ html,body { width:100%; height:100%; background:#05050f; color:#fff; font-family
   padding:0 20px; border-bottom:1px solid rgba(100,150,255,0.2);
 }
 #top-bar h1 { font-size:1em; letter-spacing:.15em; color:#7eb8ff; }
-.btn-start {
-  background:linear-gradient(135deg,#27ae60,#1a6b22);
-  border:none; color:#fff; padding:8px 28px; border-radius:6px;
-  font-size:.9em; cursor:pointer; letter-spacing:.1em;
-}
-.btn-reset {
-  background:rgba(200,80,60,0.2); border:1px solid #c0392b;
-  color:#e74c3c; padding:8px 18px; border-radius:6px;
-  font-size:.85em; cursor:pointer; margin-left:10px;
-}
+.btn-start { background:linear-gradient(135deg,#27ae60,#1a6b22); border:none; color:#fff; padding:8px 28px; border-radius:6px; font-size:.9em; cursor:pointer; letter-spacing:.1em; }
+.btn-reset { background:rgba(200,80,60,0.2); border:1px solid #c0392b; color:#e74c3c; padding:8px 18px; border-radius:6px; font-size:.85em; cursor:pointer; margin-left:10px; }
 .status-badge { font-size:.8em; padding:4px 12px; border-radius:12px; }
 .s-waiting { background:#1a2a1a; color:#2ecc71; border:1px solid #27ae60; }
 .s-playing { background:#1a1a2a; color:#7eb8ff; border:1px solid #3a6adf; }
@@ -30,11 +22,7 @@ html,body { width:100%; height:100%; background:#05050f; color:#fff; font-family
 #main { display:flex; height:calc(100% - 52px); }
 #arena-wrap { flex:1; position:relative; }
 canvas#arena { width:100%; height:100%; display:block; }
-#side {
-  width:220px; background:rgba(0,0,0,0.5);
-  border-left:1px solid rgba(100,150,255,0.15);
-  display:flex; flex-direction:column; padding:12px 10px; gap:14px; overflow-y:auto;
-}
+#side { width:220px; background:rgba(0,0,0,0.5); border-left:1px solid rgba(100,150,255,0.15); display:flex; flex-direction:column; padding:12px 10px; gap:14px; overflow-y:auto; }
 .panel-title { font-size:.7em; letter-spacing:.15em; color:#555; text-transform:uppercase; margin-bottom:6px; }
 .score-row { display:flex; justify-content:space-between; align-items:center; }
 .score-num { font-size:2em; font-weight:bold; }
@@ -48,18 +36,13 @@ canvas#arena { width:100%; height:100%; display:block; }
 .dot-A { background:#e74c3c; }
 .dot-B { background:#2ecc71; }
 .player-name { flex:1; }
-.player-team { font-size:.7em; color:#666; }
-#winner-banner {
-  display:none; position:absolute; inset:0;
-  background:rgba(0,0,0,0.72);
-  align-items:center; justify-content:center; flex-direction:column;
-}
+.player-hp { font-size:.75em; color:#ffd700; }
+#winner-banner { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.72); align-items:center; justify-content:center; flex-direction:column; }
 .win-title { font-size:3em; font-weight:bold; letter-spacing:.2em; }
 .win-sub { font-size:1em; color:#aaa; margin-top:8px; }
 </style>
 </head>
 <body>
-
 <div id="top-bar">
   <h1>&#9992; DOGFIGHT 5v5 ADMIN</h1>
   <div style="display:flex;align-items:center;gap:10px;">
@@ -68,7 +51,6 @@ canvas#arena { width:100%; height:100%; display:block; }
     <button class="btn-reset" id="btn-reset">RESET</button>
   </div>
 </div>
-
 <div id="main">
   <div id="arena-wrap">
     <canvas id="arena"></canvas>
@@ -95,10 +77,9 @@ canvas#arena { width:100%; height:100%; display:block; }
     </div>
   </div>
 </div>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, remove }
+import { getDatabase, ref, onValue, update, remove }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -146,12 +127,16 @@ function updateBadge(){
   else if(gameStatus==="playing"){ statusBadge.textContent="LIVE"; statusBadge.classList.add("s-playing"); }
   else { statusBadge.textContent="Ended"; statusBadge.classList.add("s-ended"); }
 }
+function hpStr(hp){ return "♥".repeat(Math.max(0,hp||0)); }
 function updateSide(){
   let a=0,b=0;
   const rows=[];
   Object.values(players).forEach(p=>{ if(p.alive){ if(p.team==="A") a++; else b++; } rows.push(p); });
   aliveAEl.textContent=a; aliveBEl.textContent=b;
-  playerListEl.innerHTML=rows.map(p=>"<div class=\"player-row"+(p.alive?"":" dead")+"\"><div class=\"dot dot-"+p.team+"\"></div><div class=\"player-name\">"+p.name+"</div><div class=\"player-team\">"+p.team+"</div></div>").join("");
+  playerListEl.innerHTML=rows.map(p=>{
+    const hp=p.alive?(p.hp||3):0;
+    return "<div class=\"player-row"+(p.alive?"":" dead")+"\"><div class=\"dot dot-"+p.team+"\"></div><div class=\"player-name\">"+p.name+"</div><div class=\"player-hp\">"+hpStr(hp)+"</div></div>";
+  }).join("");
 }
 
 document.getElementById("btn-start").addEventListener("click",()=>{ update(ref(db,ROOM),{status:"playing",winner:null}); });
@@ -169,9 +154,11 @@ function loop(){
   stars.forEach(s=>{ ctx.beginPath(); ctx.arc(s.x%W,s.y%H,s.r,0,Math.PI*2); ctx.fillStyle="rgba(255,255,255,"+s.a+")"; ctx.fill(); });
   ctx.strokeStyle="rgba(100,150,255,0.2)"; ctx.setLineDash([6,8]); ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
+
   Object.values(players).forEach(p=>{
     if(!p.alive) return;
     const col=p.team==="A"?"#e74c3c":"#2ecc71";
+    // fighter
     ctx.save(); ctx.translate(p.x,p.y); if(p.team==="B") ctx.scale(-1,1);
     ctx.shadowColor=col; ctx.shadowBlur=8; ctx.fillStyle=col;
     ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(-14,-5); ctx.lineTo(-18,0); ctx.lineTo(-14,5); ctx.closePath(); ctx.fill();
@@ -180,12 +167,20 @@ function loop(){
     ctx.beginPath(); ctx.moveTo(-14,-3); ctx.lineTo(-22,-10); ctx.lineTo(-20,-3); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(-14,3); ctx.lineTo(-22,10); ctx.lineTo(-20,3); ctx.closePath(); ctx.fill();
     ctx.shadowBlur=0; ctx.restore();
-    ctx.save(); ctx.font="11px Arial"; ctx.fillStyle="rgba(255,255,255,0.7)"; ctx.textAlign="center"; ctx.fillText(p.name||"",p.x,p.y+32); ctx.restore();
+    // HP
+    ctx.save(); ctx.font="13px Arial"; ctx.fillStyle=col; ctx.textAlign="center";
+    ctx.fillText(hpStr(p.hp||3),p.x,p.y-38); ctx.restore();
+    // name
+    ctx.save(); ctx.font="11px Arial"; ctx.fillStyle="rgba(255,255,255,0.7)"; ctx.textAlign="center";
+    ctx.fillText(p.name||"",p.x,p.y+32); ctx.restore();
   });
+
+  // bullets as rectangles
   Object.values(bullets).forEach(b=>{
     const col=b.team==="A"?"#ff8a80":"#80ff9e";
-    ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2);
-    ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+    ctx.save(); ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=8;
+    ctx.fillRect(b.x-12,b.y-3,24,6);
+    ctx.shadowBlur=0; ctx.restore();
   });
   requestAnimationFrame(loop);
 }
