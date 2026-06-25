@@ -110,8 +110,14 @@ let clientW=390, clientH=700; // default mobile size, updated from Firebase meta
 function scaleX(x){ return x * (canvas.width / clientW); }
 function scaleY(y){ return y * (canvas.height / clientH); }
 
-function resizeCanvas(){ canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight; }
-window.addEventListener("resize",resizeCanvas); resizeCanvas();
+function resizeCanvas(){
+  const wrap=document.getElementById("arena-wrap");
+  const w=wrap.clientWidth, h=wrap.clientHeight;
+  if(w>0&&h>0){ canvas.width=w; canvas.height=h; }
+}
+window.addEventListener("resize",resizeCanvas);
+// retry until arena-wrap has real dimensions
+const resizeTimer=setInterval(()=>{ resizeCanvas(); if(canvas.width>100) clearInterval(resizeTimer); },100);
 
 onValue(ref(db,ROOM+"/players"),snap=>{ players=snap.val()||{}; updateSide(); });
 onValue(ref(db,ROOM+"/meta"),snap=>{ const m=snap.val(); if(m){ clientW=m.clientW||390; clientH=m.clientH||700; } });

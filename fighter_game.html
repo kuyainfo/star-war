@@ -363,39 +363,68 @@ function drawFighter(x,y,color,flipped,isMe,name,hp){
   ctx.textAlign="center"; ctx.fillText(name||"",x,y+32); ctx.restore();
 }
 
-joystickArea.addEventListener("touchstart",e=>{ e.preventDefault(); joyActive=true; },{passive:false});
-joystickArea.addEventListener("touchmove",e=>{
-  e.preventDefault(); if(!joyActive) return;
-  const t=e.touches[0], r=joystickArea.getBoundingClientRect();
-  const cx=r.left+r.width/2, cy=r.top+r.height/2;
-  let dx=t.clientX-cx, dy=t.clientY-cy;
-  const dist=Math.sqrt(dx*dx+dy*dy);
-  if(dist>JOY_R){ dx=dx/dist*JOY_R; dy=dy/dist*JOY_R; }
-  joystickKnob.style.transform="translate("+dx+"px,"+dy+"px)";
-  joyDx=dx/JOY_R; joyDy=dy/JOY_R;
-},{passive:false});
-joystickArea.addEventListener("touchend",e=>{ e.preventDefault(); joyActive=false; joyDx=0; joyDy=0; joystickKnob.style.transform=""; },{passive:false});
+// --- Touch: track each finger by identifier ---
+let joyTouchId = null;
+let fireTouchId = null;
 
-let mj=false;
-joystickArea.addEventListener("mousedown",e=>{ e.stopPropagation(); mj=true; });
-document.addEventListener("mousemove",e=>{
-  if(!mj) return;
+function updateJoystick(clientX, clientY){
   const r=joystickArea.getBoundingClientRect();
   const cx=r.left+r.width/2, cy=r.top+r.height/2;
-  let dx=e.clientX-cx, dy=e.clientY-cy;
+  let dx=clientX-cx, dy=clientY-cy;
   const dist=Math.sqrt(dx*dx+dy*dy);
   if(dist>JOY_R){ dx=dx/dist*JOY_R; dy=dy/dist*JOY_R; }
   joystickKnob.style.transform="translate("+dx+"px,"+dy+"px)";
   joyDx=dx/JOY_R; joyDy=dy/JOY_R;
+}
+function resetJoystick(){
+  joyTouchId=null; joyDx=0; joyDy=0; joystickKnob.style.transform="";
+}
+
+joystickArea.addEventListener("touchstart",e=>{
+  e.preventDefault();
+  if(joyTouchId!==null) return;
+  const t=e.changedTouches[0];
+  joyTouchId=t.identifier;
+  updateJoystick(t.clientX,t.clientY);
+},{passive:false});
+
+document.addEventListener("touchmove",e=>{
+  for(let i=0;i<e.changedTouches.length;i++){
+    const t=e.changedTouches[i];
+    if(t.identifier===joyTouchId){ e.preventDefault(); updateJoystick(t.clientX,t.clientY); }
+  }
+},{passive:false});
+
+document.addEventListener("touchend",e=>{
+  for(let i=0;i<e.changedTouches.length;i++){
+    const t=e.changedTouches[i];
+    if(t.identifier===joyTouchId) resetJoystick();
+    if(t.identifier===fireTouchId){ fireTouchId=null; isFiring=false; fireBtn.classList.remove("active"); }
+  }
 });
-document.addEventListener("mouseup",e=>{
-  if(mj){ mj=false; joyDx=0; joyDy=0; joystickKnob.style.transform=""; }
-  isFiring=false; fireBtn.classList.remove("active");
+document.addEventListener("touchcancel",e=>{
+  for(let i=0;i<e.changedTouches.length;i++){
+    const t=e.changedTouches[i];
+    if(t.identifier===joyTouchId) resetJoystick();
+    if(t.identifier===fireTouchId){ fireTouchId=null; isFiring=false; fireBtn.classList.remove("active"); }
+  }
 });
 
-fireBtn.addEventListener("touchstart",e=>{ e.preventDefault(); e.stopPropagation(); if(fireLocked) return; fireBtn.classList.add("active"); isFiring=true; tryFire(); },{passive:false});
-fireBtn.addEventListener("touchend",e=>{ e.preventDefault(); e.stopPropagation(); fireBtn.classList.remove("active"); isFiring=false; },{passive:false});
-fireBtn.addEventListener("mousedown",e=>{ e.stopPropagation(); if(fireLocked) return; isFiring=true; fireBtn.classList.add("active"); tryFire(); });
+fireBtn.addEventListener("touchstart",e=>{
+  e.preventDefault();
+  if(fireTouchId!==null) return;
+  const t=e.changedTouches[0];
+  fireTouchId=t.identifier;
+  if(fireLocked) return;
+  fireBtn.classList.add("active"); isFiring=true; tryFire();
+},{passive:false});
+
+// --- Mouse fallback (desktop testing) ---
+let mj=false;
+joystickArea.addEventListener("mousedown",e=>{ mj=true; updateJoystick(e.clientX,e.clientY); });
+document.addEventListener("mousemove",e=>{ if(!mj) return; updateJoystick(e.clientX,e.clientY); });
+document.addEventListener("mouseup",()=>{ if(mj){ mj=false; resetJoystick(); } isFiring=false; fireBtn.classList.remove("active"); });
+fireBtn.addEventListener("mousedown",()=>{ if(fireLocked) return; isFiring=true; fireBtn.classList.add("active"); tryFire(); });
 setInterval(()=>{ if(isFiring&&!fireLocked) tryFire(); },FIRE_CD);
 </script>
 </body>
