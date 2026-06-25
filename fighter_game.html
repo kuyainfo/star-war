@@ -247,7 +247,9 @@ function pushMyPos(){
   const minX=myTeam==="A"?20:hw+4, maxX=myTeam==="A"?hw-4:W-20;
   nx=Math.max(minX,Math.min(maxX,nx));
   ny=Math.max(40,Math.min(H-40,ny));
+  // local prediction: update local state immediately, push to Firebase in background
   myX=nx; myY=ny;
+  if(players[myId]){ players[myId].x=nx; players[myId].y=ny; }
   update(ref(db,ROOM+"/players/"+myId),{x:nx,y:ny});
 }
 
