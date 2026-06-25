@@ -105,11 +105,16 @@ const winnerBanner=document.getElementById("winner-banner");
 const winTitle=document.getElementById("win-title");
 
 let players={}, bullets={}, gameStatus="waiting";
+let clientW=390, clientH=700; // default mobile size, updated from Firebase meta
+
+function scaleX(x){ return x * (canvas.width / clientW); }
+function scaleY(y){ return y * (canvas.height / clientH); }
 
 function resizeCanvas(){ canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight; }
 window.addEventListener("resize",resizeCanvas); resizeCanvas();
 
 onValue(ref(db,ROOM+"/players"),snap=>{ players=snap.val()||{}; updateSide(); });
+onValue(ref(db,ROOM+"/meta"),snap=>{ const m=snap.val(); if(m){ clientW=m.clientW||390; clientH=m.clientH||700; } });
 onValue(ref(db,ROOM+"/bullets"),snap=>{ bullets=snap.val()||{}; });
 onValue(ref(db,ROOM+"/status"),snap=>{ gameStatus=snap.val()||"waiting"; updateBadge(); });
 onValue(ref(db,ROOM+"/winner"),snap=>{
@@ -153,13 +158,15 @@ function loop(){
   ctx.fillStyle="#05050f"; ctx.fillRect(0,0,W,H);
   stars.forEach(s=>{ ctx.beginPath(); ctx.arc(s.x%W,s.y%H,s.r,0,Math.PI*2); ctx.fillStyle="rgba(255,255,255,"+s.a+")"; ctx.fill(); });
   ctx.strokeStyle="rgba(100,150,255,0.2)"; ctx.setLineDash([6,8]); ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
+  const cx=scaleX(clientW/2);
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke(); ctx.setLineDash([]);
 
   Object.values(players).forEach(p=>{
     if(!p.alive) return;
     const col=p.team==="A"?"#e74c3c":"#2ecc71";
+    const sx=scaleX(p.x), sy=scaleY(p.y);
     // fighter
-    ctx.save(); ctx.translate(p.x,p.y); if(p.team==="B") ctx.scale(-1,1);
+    ctx.save(); ctx.translate(sx,sy); if(p.team==="B") ctx.scale(-1,1);
     ctx.shadowColor=col; ctx.shadowBlur=8; ctx.fillStyle=col;
     ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(-14,-5); ctx.lineTo(-18,0); ctx.lineTo(-14,5); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-10,-18); ctx.lineTo(-16,-14); ctx.lineTo(-8,0); ctx.closePath(); ctx.fill();
@@ -169,17 +176,18 @@ function loop(){
     ctx.shadowBlur=0; ctx.restore();
     // HP
     ctx.save(); ctx.font="13px Arial"; ctx.fillStyle=col; ctx.textAlign="center";
-    ctx.fillText(hpStr(p.hp||3),p.x,p.y-38); ctx.restore();
+    ctx.fillText(hpStr(p.hp||3),sx,sy-38); ctx.restore();
     // name
     ctx.save(); ctx.font="11px Arial"; ctx.fillStyle="rgba(255,255,255,0.7)"; ctx.textAlign="center";
-    ctx.fillText(p.name||"",p.x,p.y+32); ctx.restore();
+    ctx.fillText(p.name||"",sx,sy+32); ctx.restore();
   });
 
-  // bullets as rectangles
+  // bullets as rectangles (scaled)
   Object.values(bullets).forEach(b=>{
     const col=b.team==="A"?"#ff8a80":"#80ff9e";
+    const bx=scaleX(b.x), by=scaleY(b.y);
     ctx.save(); ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=8;
-    ctx.fillRect(b.x-12,b.y-3,24,6);
+    ctx.fillRect(bx-12,by-3,24,6);
     ctx.shadowBlur=0; ctx.restore();
   });
   requestAnimationFrame(loop);

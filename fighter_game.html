@@ -173,8 +173,9 @@ joinBtn.addEventListener("click", async () => {
   let cA=0,cB=0;
   Object.values(ex).forEach(p=>{ if(p.team==="A") cA++; else cB++; });
   let team;
-  if(cA>=5&&cB<5) team="B";
-  else if(cB>=5&&cA<5) team="A";
+  if(cA < cB) team="A";
+  else if(cB < cA) team="B";
+  else if(cA>=5) team="B";
   else team=Math.random()<0.5?"A":"B";
   myTeam=team;
 
@@ -187,6 +188,8 @@ joinBtn.addEventListener("click", async () => {
   const pRef=push(ref(db,ROOM+"/players"));
   myId=pRef.key;
   await set(pRef,{name,team,x:myX,y:myY,alive:true,hp:3});
+  // store this client viewport so admin can scale coordinates
+  update(ref(db,ROOM+"/meta"),{clientW:window.innerWidth, clientH:window.innerHeight-36-130});
 
   joinBtn.style.display="none"; nameInput.style.display="none";
   waitMsg.style.display="block"; teamBadge.style.display="block";
@@ -374,7 +377,7 @@ joystickArea.addEventListener("touchmove",e=>{
 joystickArea.addEventListener("touchend",e=>{ e.preventDefault(); joyActive=false; joyDx=0; joyDy=0; joystickKnob.style.transform=""; },{passive:false});
 
 let mj=false;
-joystickArea.addEventListener("mousedown",()=>mj=true);
+joystickArea.addEventListener("mousedown",e=>{ e.stopPropagation(); mj=true; });
 document.addEventListener("mousemove",e=>{
   if(!mj) return;
   const r=joystickArea.getBoundingClientRect();
@@ -385,12 +388,14 @@ document.addEventListener("mousemove",e=>{
   joystickKnob.style.transform="translate("+dx+"px,"+dy+"px)";
   joyDx=dx/JOY_R; joyDy=dy/JOY_R;
 });
-document.addEventListener("mouseup",()=>{ if(!mj) return; mj=false; joyDx=0; joyDy=0; joystickKnob.style.transform=""; });
+document.addEventListener("mouseup",e=>{
+  if(mj){ mj=false; joyDx=0; joyDy=0; joystickKnob.style.transform=""; }
+  isFiring=false; fireBtn.classList.remove("active");
+});
 
-fireBtn.addEventListener("touchstart",e=>{ e.preventDefault(); if(fireLocked) return; fireBtn.classList.add("active"); isFiring=true; tryFire(); },{passive:false});
-fireBtn.addEventListener("touchend",e=>{ e.preventDefault(); fireBtn.classList.remove("active"); isFiring=false; },{passive:false});
-fireBtn.addEventListener("mousedown",()=>{ if(fireLocked) return; isFiring=true; fireBtn.classList.add("active"); tryFire(); });
-document.addEventListener("mouseup",()=>{ isFiring=false; fireBtn.classList.remove("active"); });
+fireBtn.addEventListener("touchstart",e=>{ e.preventDefault(); e.stopPropagation(); if(fireLocked) return; fireBtn.classList.add("active"); isFiring=true; tryFire(); },{passive:false});
+fireBtn.addEventListener("touchend",e=>{ e.preventDefault(); e.stopPropagation(); fireBtn.classList.remove("active"); isFiring=false; },{passive:false});
+fireBtn.addEventListener("mousedown",e=>{ e.stopPropagation(); if(fireLocked) return; isFiring=true; fireBtn.classList.add("active"); tryFire(); });
 setInterval(()=>{ if(isFiring&&!fireLocked) tryFire(); },FIRE_CD);
 </script>
 </body>
